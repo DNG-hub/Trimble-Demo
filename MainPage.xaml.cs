@@ -32,5 +32,10 @@ namespace Trimble
                 await Navigation.PushAsync(new ScenePage(selectedScene));
             }
         }
+
+        private async void OnOpenPointCloudClicked(object sender, EventArgs e)
+        {
+            await Navigation.PushAsync(new PointCloudPage());
+        }
     }
 }

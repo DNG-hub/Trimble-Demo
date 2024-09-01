@@ -8,6 +8,10 @@
                 Text="New Scene" 
                 Clicked="OnNewSceneClicked"
                 Margin="20"/>
+        <Button x:Name="OpenPointCloudButton" 
+                Text="Open Point Cloud" 
+                Clicked="OnOpenPointCloudClicked"
+                Margin="20"/>
         <ListView x:Name="SceneListView"
                   ItemSelected="OnSceneSelected">
             <ListView.ItemTemplate>

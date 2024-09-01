@@ -103,4 +103,10 @@
     <AndroidResource Include="Platforms\Android\Resources\mipmap-xxxhdpi\ic_launcher_monochrome.png" />
 	</ItemGroup>
 
+	<ItemGroup>
+	  <MauiXaml Update="PointCloudPage.xaml">
+	    <Generator>MSBuild:Compile</Generator>
+	  </MauiXaml>
+	</ItemGroup>
+
 </Project>
