@@ -17,10 +17,40 @@ namespace Trimble
 
         private void InitializePLYFolder()
         {
-            plyFolderPath = Path.Combine(FileSystem.AppDataDirectory, "Documents", "PLY");
-            if (!Directory.Exists(plyFolderPath))
+            try
             {
-                Directory.CreateDirectory(plyFolderPath);
+                plyFolderPath = Path.Combine(FileSystem.AppDataDirectory, "Documents", "PLY");
+                Console.WriteLine($"Attempting to access or create PLY folder at: {plyFolderPath}");
+
+                if (!Directory.Exists(plyFolderPath))
+                {
+                    Console.WriteLine("PLY folder does not exist. Creating it now.");
+                    Directory.CreateDirectory(plyFolderPath);
+                    Console.WriteLine("PLY folder created successfully.");
+                }
+                else
+                {
+                    Console.WriteLine("PLY folder already exists.");
+                }
+
+                var files = Directory.GetFiles(plyFolderPath, "*.ply");
+                Console.WriteLine($"Number of .ply files found: {files.Length}");
+                foreach (var file in files)
+                {
+                    Console.WriteLine($"Found file: {Path.GetFileName(file)}");
+                }
+
+                if (files.Length == 0)
+                {
+                    Console.WriteLine("No .ply files found in the PLY folder.");
+                    Console.WriteLine("Please ensure you have copied some .ply files to this location:");
+                    Console.WriteLine(plyFolderPath);
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"An error occurred while initializing the PLY folder: {ex.Message}");
+                Console.WriteLine($"Stack trace: {ex.StackTrace}");
             }
         }
 
