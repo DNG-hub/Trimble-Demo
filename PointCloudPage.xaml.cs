@@ -7,6 +7,7 @@ namespace Trimble
     {
         private List<Point3D> points = new List<Point3D>();
         private string plyFolderPath;
+        private Picker filePicker;
 
         public PointCloudPage()
         {
@@ -17,10 +18,22 @@ namespace Trimble
 
         private void InitializePLYFolder()
         {
-            plyFolderPath = Path.Combine(FileSystem.AppDataDirectory, "Documents", "PLY");
+            // Use the correct path where the PLY files are located
+            plyFolderPath = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                "SOURCE", "REPOS", "TRIMBLE", "DOCUMENTS", "PLY");
+
             if (!Directory.Exists(plyFolderPath))
             {
-                Directory.CreateDirectory(plyFolderPath);
+                throw new DirectoryNotFoundException($"PLY folder not found: {plyFolderPath}");
+            }
+            
+            // Debug: Print all files in the directory
+            var allFiles = Directory.GetFiles(plyFolderPath);
+            Console.WriteLine($"All files in {plyFolderPath}:");
+            foreach (var file in allFiles)
+            {
+                Console.WriteLine(Path.GetFileName(file));
             }
         }
 
@@ -31,47 +44,67 @@ namespace Trimble
             pointCloudView.WidthRequest = 300;
             pointCloudView.BackgroundColor = Colors.LightGray;
 
+            filePicker = new Picker
+            {
+                Title = "Select a PLY file"
+            };
+            filePicker.SelectedIndexChanged += OnFileSelected;
+
             var openFileButton = new Button
             {
-                Text = "Open PLY File from Documents\\PLY",
-                Command = new Command(() => OnOpenFileClicked(null, EventArgs.Empty))
+                Text = "Load Selected PLY File",
+                Command = new Command(OnOpenFileClicked)
             };
 
             if (Content is Grid grid)
             {
-                grid.Children.Insert(0, openFileButton);
+                grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+                grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+                grid.Children.Add(filePicker);
+                Grid.SetRow(filePicker, 0);
+                grid.Children.Add(openFileButton);
+                Grid.SetRow(openFileButton, 1);
             }
+
+            LoadFileList();
         }
 
-        private async void OnOpenFileClicked(object sender, EventArgs e)
+        private void LoadFileList()
         {
             var files = Directory.GetFiles(plyFolderPath, "*.ply");
-            if (files.Length == 0)
-            {
-                await DisplayAlert("No Files", "No .ply files found in the Documents\\PLY folder.", "OK");
-                return;
-            }
-
             var fileNames = files.Select(Path.GetFileName).ToArray();
-            var selectedFile = await DisplayActionSheet("Select a PLY file", "Cancel", null, fileNames);
+            filePicker.ItemsSource = fileNames;
+        }
 
-            if (selectedFile != "Cancel" && !string.IsNullOrEmpty(selectedFile))
+        private void OnFileSelected(object? sender, EventArgs e)
+        {
+            // This method is called when a file is selected in the Picker
+            // You can add any additional logic here if needed
+        }
+
+        private void OnOpenFileClicked()
+        {
+            if (filePicker.SelectedItem is string selectedFile)
             {
                 var fullPath = Path.Combine(plyFolderPath, selectedFile);
                 try
                 {
-                    points = await ReadPLYFile(fullPath);
+                    points = ReadPLYFile(fullPath);
                     pointCloudView.Drawable = new PointCloudDrawable(points);
                     pointCloudView.Invalidate();
                 }
                 catch (Exception ex)
                 {
-                    await DisplayAlert("Error", $"An error occurred while reading the file: {ex.Message}", "OK");
+                    DisplayAlert("Error", $"An error occurred while reading the file: {ex.Message}", "OK");
                 }
+            }
+            else
+            {
+                DisplayAlert("No File Selected", "Please select a PLY file first.", "OK");
             }
         }
 
-        private async Task<List<Point3D>> ReadPLYFile(string filePath)
+        private List<Point3D> ReadPLYFile(string filePath)
         {
             var points = new List<Point3D>();
             using (var stream = File.OpenRead(filePath))
@@ -81,7 +114,7 @@ namespace Trimble
                 bool headerEnd = false;
                 int vertexCount = 0;
 
-                while ((line = await reader.ReadLineAsync()) != null)
+                while ((line = reader.ReadLine()) != null)
                 {
                     if (!headerEnd)
                     {
