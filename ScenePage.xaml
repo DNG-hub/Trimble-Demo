@@ -2,17 +2,30 @@
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              x:Class="Trimble.ScenePage"
-             Title="{Binding Title}">
+             Title="{Binding Name}">
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
         <GraphicsView x:Name="sceneGraphicsView" Grid.Row="0"/>
-        <Button x:Name="addMeasurementButton"
-                Text="Add Measurement" 
-                Grid.Row="1"
-                Margin="10"
-                Clicked="OnAddMeasurementClicked"/>
+        <ListView x:Name="measurementListView" Grid.Row="1" HeightRequest="200">
+            <ListView.ItemTemplate>
+                <DataTemplate>
+                    <TextCell Text="{Binding .}" />
+                </DataTemplate>
+            </ListView.ItemTemplate>
+        </ListView>
+        <StackLayout Orientation="Horizontal" Grid.Row="2">
+            <Button x:Name="addMeasurementButton"
+                    Text="Add Measurement" 
+                    Clicked="OnAddMeasurementClicked"
+                    HorizontalOptions="FillAndExpand"/>
+            <Button x:Name="saveButton"
+                    Text="Save Scene" 
+                    Clicked="OnSaveClicked"
+                    HorizontalOptions="FillAndExpand"/>
+        </StackLayout>
     </Grid>
 </ContentPage>

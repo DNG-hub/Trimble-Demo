@@ -16,10 +16,14 @@ public partial class ScenePage : ContentPage
         InitializeComponent();
         _currentScene = scene;
         _sceneRenderer = new SceneRenderer(scene);
-
         sceneGraphicsView.Drawable = new GraphicsDrawable(DrawScene);
-
         BindingContext = scene;
+
+        // Initialize the ListView
+        measurementListView.ItemsSource = _currentScene.Measurements;
+
+        // Set the page title to the scene name
+        Title = scene.Name;
     }
 
     private void DrawScene(ICanvas canvas, RectF dirtyRect)
@@ -35,14 +39,42 @@ public partial class ScenePage : ContentPage
         if (string.IsNullOrWhiteSpace(result))
             return;
 
-        string[] coordinates = result.Split(',');
-        if (coordinates.Length != 2 || !double.TryParse(coordinates[0], out double x) || !double.TryParse(coordinates[1], out double y))
+        if (TryParseMeasurement(result, out Measurement newMeasurement))
+        {
+            _currentScene.Measurements.Add(newMeasurement);
+            sceneGraphicsView.Invalidate();
+            UpdateMeasurementList();
+        }
+        else
         {
             await DisplayAlert("Invalid Input", "Please enter valid X and Y coordinates.", "OK");
-            return;
         }
+    }
 
-        _currentScene.Measurements.Add(new Measurement { X = x, Y = y });
-        sceneGraphicsView.Invalidate();
+    private bool TryParseMeasurement(string input, out Measurement measurement)
+    {
+        measurement = null;
+        string[] coordinates = input.Split(',');
+        if (coordinates.Length == 2 &&
+            double.TryParse(coordinates[0], out double x) &&
+            double.TryParse(coordinates[1], out double y))
+        {
+            measurement = new Measurement { X = x, Y = y };
+            return true;
+        }
+        return false;
+    }
+
+    private void UpdateMeasurementList()
+    {
+        // Force the ListView to refresh
+        measurementListView.ItemsSource = null;
+        measurementListView.ItemsSource = _currentScene.Measurements;
+    }
+
+    private async void OnSaveClicked(object sender, EventArgs e)
+    {
+        // TODO: Implement actual saving logic
+        await DisplayAlert("Save", "Scene saved successfully!", "OK");
     }
 }

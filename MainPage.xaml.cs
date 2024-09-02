@@ -1,4 +1,5 @@
-﻿using Trimble.Models;
+﻿using System.Collections.ObjectModel;
+using Trimble.Models;
 
 namespace Trimble
 {
@@ -18,11 +19,16 @@ namespace Trimble
             string sceneName = await DisplayPromptAsync("New Scene", "Enter scene name:");
             if (!string.IsNullOrWhiteSpace(sceneName))
             {
-                var newScene = new Scene { Name = sceneName };
+                var newScene = new Scene { Name = sceneName, Title = sceneName }; // Title can be set differently if needed
                 Scenes.Add(newScene);
-                SceneListView.ItemsSource = null;
-                SceneListView.ItemsSource = Scenes;
+                UpdateSceneList();
+                await Navigation.PushAsync(new ScenePage(newScene));
             }
+        }
+        private void UpdateSceneList()
+        {
+            SceneListView.ItemsSource = null;
+            SceneListView.ItemsSource = Scenes;
         }
 
         private async void OnSceneSelected(object sender, SelectedItemChangedEventArgs e)
@@ -37,5 +43,7 @@ namespace Trimble
         {
             await Navigation.PushAsync(new PointCloudPage());
         }
+
+
     }
 }
