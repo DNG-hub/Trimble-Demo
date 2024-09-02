@@ -7,6 +7,7 @@ namespace Trimble
     {
         private List<Point3D> points = new List<Point3D>();
         private string plyFolderPath;
+        private Picker filePicker;
 
         public PointCloudPage()
         {
@@ -17,6 +18,7 @@ namespace Trimble
 
         private void InitializePLYFolder()
         {
+
             try
             {
                 plyFolderPath = Path.Combine(FileSystem.AppDataDirectory, "Documents", "PLY");
@@ -51,6 +53,24 @@ namespace Trimble
             {
                 Console.WriteLine($"An error occurred while initializing the PLY folder: {ex.Message}");
                 Console.WriteLine($"Stack trace: {ex.StackTrace}");
+
+            // Use the correct path where the PLY files are located
+            plyFolderPath = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                "SOURCE", "REPOS", "TRIMBLE", "DOCUMENTS", "PLY");
+
+            if (!Directory.Exists(plyFolderPath))
+            {
+                throw new DirectoryNotFoundException($"PLY folder not found: {plyFolderPath}");
+            }
+            
+            // Debug: Print all files in the directory
+            var allFiles = Directory.GetFiles(plyFolderPath);
+            Console.WriteLine($"All files in {plyFolderPath}:");
+            foreach (var file in allFiles)
+            {
+                Console.WriteLine(Path.GetFileName(file));
+>>>>>>> 165b8e085e114890e06932c9ee9603532e39df6a
             }
         }
 
@@ -61,43 +81,63 @@ namespace Trimble
             pointCloudView.WidthRequest = 300;
             pointCloudView.BackgroundColor = Colors.LightGray;
 
+            filePicker = new Picker
+            {
+                Title = "Select a PLY file"
+            };
+            filePicker.SelectedIndexChanged += OnFileSelected;
+
             var openFileButton = new Button
             {
-                Text = "Open PLY File from Documents\\PLY",
-                Command = new Command(() => OnOpenFileClicked(null, EventArgs.Empty))
+                Text = "Load Selected PLY File",
+                Command = new Command(OnOpenFileClicked)
             };
 
             if (Content is Grid grid)
             {
-                grid.Children.Insert(0, openFileButton);
+                grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+                grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+                grid.Children.Add(filePicker);
+                Grid.SetRow(filePicker, 0);
+                grid.Children.Add(openFileButton);
+                Grid.SetRow(openFileButton, 1);
             }
+
+            LoadFileList();
         }
 
-        private async void OnOpenFileClicked(object sender, EventArgs e)
+        private void LoadFileList()
         {
             var files = Directory.GetFiles(plyFolderPath, "*.ply");
-            if (files.Length == 0)
-            {
-                await DisplayAlert("No Files", "No .ply files found in the Documents\\PLY folder.", "OK");
-                return;
-            }
-
             var fileNames = files.Select(Path.GetFileName).ToArray();
-            var selectedFile = await DisplayActionSheet("Select a PLY file", "Cancel", null, fileNames);
+            filePicker.ItemsSource = fileNames;
+        }
 
-            if (selectedFile != "Cancel" && !string.IsNullOrEmpty(selectedFile))
+        private void OnFileSelected(object? sender, EventArgs e)
+        {
+            // This method is called when a file is selected in the Picker
+            // You can add any additional logic here if needed
+        }
+
+        private void OnOpenFileClicked()
+        {
+            if (filePicker.SelectedItem is string selectedFile)
             {
                 var fullPath = Path.Combine(plyFolderPath, selectedFile);
                 try
                 {
-                    points = await ReadPLYFile(fullPath);
+                    points = ReadPLYFile(fullPath);
                     pointCloudView.Drawable = new PointCloudDrawable(points);
                     pointCloudView.Invalidate();
                 }
                 catch (Exception ex)
                 {
-                    await DisplayAlert("Error", $"An error occurred while reading the file: {ex.Message}", "OK");
+                    DisplayAlert("Error", $"An error occurred while reading the file: {ex.Message}", "OK");
                 }
+            }
+            else
+            {
+                DisplayAlert("No File Selected", "Please select a PLY file first.", "OK");
             }
         }
 
@@ -107,38 +147,79 @@ namespace Trimble
             using (var stream = File.OpenRead(filePath))
             using (var reader = new StreamReader(stream))
             {
-                string line;
+                string? line;
                 bool headerEnd = false;
                 int vertexCount = 0;
+                var propertyIndices = new Dictionary<string, int>();
+                bool isBinary = false;
 
-                while ((line = await reader.ReadLineAsync()) != null)
+                while ((line = await reader.ReadLineAsync()) is not null)
                 {
-                    if (!headerEnd)
+                    if (line.StartsWith("format"))
                     {
-                        if (line.StartsWith("element vertex"))
+                        isBinary = line.Contains("binary");
+                        if (isBinary)
                         {
-                            vertexCount = int.Parse(line.Split()[2]);
+                            throw new NotSupportedException("Binary PLY format is not supported yet.");
                         }
-                        else if (line == "end_header")
-                        {
-                            headerEnd = true;
-                        }
-                        continue;
+                    }
+                    else if (line.StartsWith("element vertex"))
+                    {
+                        vertexCount = int.Parse(line.Split()[2]);
+                    }
+                    else if (line.StartsWith("property"))
+                    {
+                        var parts = line.Split();
+                        propertyIndices[parts[2]] = propertyIndices.Count;
+                    }
+                    else if (line == "end_header")
+                    {
+                        headerEnd = true;
+                        break;
+                    }
+                }
+
+                if (!headerEnd)
+                {
+                    throw new FormatException("Invalid PLY file: Header not found or incomplete.");
+                }
+
+                if (!propertyIndices.ContainsKey("x") || !propertyIndices.ContainsKey("y") || !propertyIndices.ContainsKey("z"))
+                {
+                    throw new FormatException("Invalid PLY file: X, Y, or Z property not found.");
+                }
+
+                for (int i = 0; i < vertexCount; i++)
+                {
+                    line = await reader.ReadLineAsync();
+                    if (line is null)
+                    {
+                        throw new FormatException($"Unexpected end of file. Expected {vertexCount} vertices, found {i}.");
                     }
 
-                    var values = line.Split();
-                    if (values.Length >= 3)
+                    var values = line.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+                    if (values.Length < propertyIndices.Count)
+                    {
+                        throw new FormatException($"Invalid vertex data on line {i + 1}. Expected {propertyIndices.Count} values, found {values.Length}.");
+                    }
+
+                    try
                     {
                         points.Add(new Point3D
                         {
-                            X = float.Parse(values[0], CultureInfo.InvariantCulture),
-                            Y = float.Parse(values[1], CultureInfo.InvariantCulture),
-                            Z = float.Parse(values[2], CultureInfo.InvariantCulture)
+                            X = float.Parse(values[propertyIndices["x"]], CultureInfo.InvariantCulture),
+                            Y = float.Parse(values[propertyIndices["y"]], CultureInfo.InvariantCulture),
+                            Z = float.Parse(values[propertyIndices["z"]], CultureInfo.InvariantCulture)
                         });
                     }
-
-                    if (points.Count >= vertexCount)
-                        break;
+                    catch (FormatException)
+                    {
+                        throw new FormatException($"Invalid number format on line {i + 1}. Please ensure all coordinate values are valid numbers.");
+                    }
+                    catch (IndexOutOfRangeException)
+                    {
+                        throw new FormatException($"Missing coordinate value on line {i + 1}. Please ensure all vertices have X, Y, and Z values.");
+                    }
                 }
             }
             return points;
