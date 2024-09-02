@@ -12,4 +12,9 @@
         ContentTemplate="{DataTemplate local:MainPage}"
         Route="MainPage" />
 
+    <ShellContent
+        Title="Point Cloud"
+        ContentTemplate="{DataTemplate local:PointCloudPage}"
+        Route="PointCloudPage" />
+
 </Shell>

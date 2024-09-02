@@ -6,34 +6,75 @@ namespace Trimble
     public partial class PointCloudPage : ContentPage
     {
         private List<Point3D> points = new List<Point3D>();
+        private string plyFolderPath;
 
         public PointCloudPage()
         {
             InitializeComponent();
+            InitializePLYFolder();
+            InitializePointCloudView();
+        }
+
+        private void InitializePLYFolder()
+        {
+            plyFolderPath = Path.Combine(FileSystem.AppDataDirectory, "Documents", "PLY");
+            if (!Directory.Exists(plyFolderPath))
+            {
+                Directory.CreateDirectory(plyFolderPath);
+            }
+        }
+
+        private void InitializePointCloudView()
+        {
             pointCloudView.Drawable = new PointCloudDrawable(points);
+            pointCloudView.HeightRequest = 300;
+            pointCloudView.WidthRequest = 300;
+            pointCloudView.BackgroundColor = Colors.LightGray;
+
+            var openFileButton = new Button
+            {
+                Text = "Open PLY File from Documents\\PLY",
+                Command = new Command(() => OnOpenFileClicked(null, EventArgs.Empty))
+            };
+
+            if (Content is Grid grid)
+            {
+                grid.Children.Insert(0, openFileButton);
+            }
         }
 
         private async void OnOpenFileClicked(object sender, EventArgs e)
         {
-            try
+            var files = Directory.GetFiles(plyFolderPath, "*.ply");
+            if (files.Length == 0)
             {
-                var result = await FilePicker.PickAsync();
-                if (result != null)
+                await DisplayAlert("No Files", "No .ply files found in the Documents\\PLY folder.", "OK");
+                return;
+            }
+
+            var fileNames = files.Select(Path.GetFileName).ToArray();
+            var selectedFile = await DisplayActionSheet("Select a PLY file", "Cancel", null, fileNames);
+
+            if (selectedFile != "Cancel" && !string.IsNullOrEmpty(selectedFile))
+            {
+                var fullPath = Path.Combine(plyFolderPath, selectedFile);
+                try
                 {
-                    points = await ReadPLYFile(result.FullPath);
+                    points = await ReadPLYFile(fullPath);
+                    pointCloudView.Drawable = new PointCloudDrawable(points);
                     pointCloudView.Invalidate();
                 }
-            }
-            catch (Exception ex)
-            {
-                await DisplayAlert("Error", $"An error occurred: {ex.Message}", "OK");
+                catch (Exception ex)
+                {
+                    await DisplayAlert("Error", $"An error occurred while reading the file: {ex.Message}", "OK");
+                }
             }
         }
 
         private async Task<List<Point3D>> ReadPLYFile(string filePath)
         {
             var points = new List<Point3D>();
-            using (var stream = await FileSystem.OpenAppPackageFileAsync(filePath))
+            using (var stream = File.OpenRead(filePath))
             using (var reader = new StreamReader(stream))
             {
                 string line;
