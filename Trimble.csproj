@@ -58,6 +58,12 @@
 		<!-- Raw Assets (also remove the "Resources\Raw" prefix) -->
 		<MauiAsset Include="Resources\Raw\**" LogicalName="%(RecursiveDir)%(Filename)%(Extension)" />
 	</ItemGroup>
+
+	<ItemGroup>
+	  <None Remove="Resources\PLY\cube_point_cloud.ply" />
+	  <None Remove="Resources\PLY\octahedron_point_cloud.ply" />
+	  <None Remove="Resources\PLY\tetrahedron_point_cloud.ply" />
+	</ItemGroup>
 	  
 
 
@@ -101,6 +107,12 @@
     <AndroidResource Include="Platforms\Android\Resources\mipmap-xxxhdpi\ic_launcher_background.png" />
     <AndroidResource Include="Platforms\Android\Resources\mipmap-xxxhdpi\ic_launcher_foreground.png" />
     <AndroidResource Include="Platforms\Android\Resources\mipmap-xxxhdpi\ic_launcher_monochrome.png" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <EmbeddedResource Include="Resources\PLY\cube_point_cloud.ply" />
+	  <EmbeddedResource Include="Resources\PLY\octahedron_point_cloud.ply" />
+	  <EmbeddedResource Include="Resources\PLY\tetrahedron_point_cloud.ply" />
 	</ItemGroup>
 
 	<ItemGroup>

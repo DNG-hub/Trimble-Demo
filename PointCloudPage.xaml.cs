@@ -1,5 +1,7 @@
 using Microsoft.Maui.Graphics;
+using System.Buffers;
 using System.Globalization;
+using System.Reflection;
 
 namespace Trimble
 {
@@ -19,56 +21,28 @@ namespace Trimble
         {
             try
             {
-                plyFolderPath = Path.Combine(FileSystem.AppDataDirectory, "Documents", "PLY");
-                Console.WriteLine($"Attempting to access or create PLY folder at: {plyFolderPath}");
+                plyFolderPath = "Trimble.Resources.PLY";
+                Console.WriteLine($"PLY folder path: {plyFolderPath}");
 
-                if (!Directory.Exists(plyFolderPath))
-                {
-                    Console.WriteLine("PLY folder does not exist. Creating it now.");
-                    Directory.CreateDirectory(plyFolderPath);
-                    Console.WriteLine("PLY folder created successfully.");
-                }
-                else
-                {
-                    Console.WriteLine("PLY folder already exists.");
-                }
+                var assembly = Assembly.GetExecutingAssembly();
+                var resourceNames = assembly.GetManifestResourceNames();
+                var plyFiles = resourceNames.Where(r => r.StartsWith(plyFolderPath) && r.EndsWith(".ply"));
 
-                var files = Directory.GetFiles(plyFolderPath, "*.ply");
-                Console.WriteLine($"Number of .ply files found: {files.Length}");
-                foreach (var file in files)
+                Console.WriteLine($"Number of .ply files found: {plyFiles.Count()}");
+                foreach (var file in plyFiles)
                 {
                     Console.WriteLine($"Found file: {Path.GetFileName(file)}");
                 }
 
-                if (files.Length == 0)
+                if (!plyFiles.Any())
                 {
-                    Console.WriteLine("No .ply files found in the PLY folder.");
-                    Console.WriteLine("Please ensure you have copied some .ply files to this location:");
-                    Console.WriteLine(plyFolderPath);
+                    Console.WriteLine("No .ply files found in the resources.");
                 }
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"An error occurred while initializing the PLY folder: {ex.Message}");
                 Console.WriteLine($"Stack trace: {ex.StackTrace}");
-
-                // Fallback to a different path if the initial one fails
-                plyFolderPath = Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-                    "SOURCE", "REPOS", "TRIMBLE", "DOCUMENTS", "PLY");
-
-                if (!Directory.Exists(plyFolderPath))
-                {
-                    throw new DirectoryNotFoundException($"PLY folder not found: {plyFolderPath}");
-                }
-
-                // Debug: Print all files in the directory
-                var allFiles = Directory.GetFiles(plyFolderPath);
-                Console.WriteLine($"All files in {plyFolderPath}:");
-                foreach (var file in allFiles)
-                {
-                    Console.WriteLine(Path.GetFileName(file));
-                }
             }
         }
 
@@ -96,20 +70,23 @@ namespace Trimble
         {
             try
             {
-                var files = Directory.GetFiles(plyFolderPath, "*.ply");
-                if (files.Length == 0)
+                var assembly = Assembly.GetExecutingAssembly();
+                var resourceNames = assembly.GetManifestResourceNames();
+                var plyFiles = resourceNames.Where(r => r.StartsWith(plyFolderPath) && r.EndsWith(".ply")).ToArray();
+
+                if (plyFiles.Length == 0)
                 {
-                    await DisplayAlert("No Files", "No .ply files found in the specified folder.", "OK");
+                    await DisplayAlert("No Files", "No .ply files found in the embedded resources.", "OK");
                     return;
                 }
 
-                var fileNames = files.Select(Path.GetFileName).ToArray();
+                var fileNames = plyFiles.Select(Path.GetFileName).ToArray();
                 var selectedFile = await DisplayActionSheet("Select a PLY file", "Cancel", null, fileNames);
 
                 if (selectedFile != "Cancel" && !string.IsNullOrEmpty(selectedFile))
                 {
-                    var fullPath = Path.Combine(plyFolderPath, selectedFile);
-                    points = await ReadPLYFile(fullPath);
+                    var fullResourcePath = plyFiles.First(r => r.EndsWith(selectedFile));
+                    points = await ReadPLYFile(fullResourcePath);
                     pointCloudView.Drawable = new PointCloudDrawable(points);
                     pointCloudView.Invalidate();
                 }
@@ -120,10 +97,12 @@ namespace Trimble
             }
         }
 
-        private async Task<List<Point3D>> ReadPLYFile(string filePath)
+        private async Task<List<Point3D>> ReadPLYFile(string resourcePath)
         {
             var points = new List<Point3D>();
-            using (var stream = File.OpenRead(filePath))
+            var assembly = Assembly.GetExecutingAssembly();
+
+            using (var stream = assembly.GetManifestResourceStream(resourcePath))
             using (var reader = new BinaryReader(stream))
             {
                 string header = "";
@@ -190,13 +169,34 @@ namespace Trimble
 
         private async Task<string> ReadLineAsync(BinaryReader reader)
         {
-            var result = new List<byte>();
-            byte b;
-            while ((b = reader.ReadByte()) != '\n')
+            const int bufferSize = 1024;
+            using var memoryStream = new MemoryStream();
+            var buffer = ArrayPool<byte>.Shared.Rent(bufferSize);
+
+            try
             {
-                result.Add(b);
+                while (true)
+                {
+                    var bytesRead = await Task.Run(() => reader.Read(buffer, 0, bufferSize));
+                    if (bytesRead == 0) break;
+
+                    var newLineIndex = Array.IndexOf(buffer, (byte)'\n', 0, bytesRead);
+                    if (newLineIndex >= 0)
+                    {
+                        await memoryStream.WriteAsync(buffer, 0, newLineIndex);
+                        reader.BaseStream.Position -= (bytesRead - newLineIndex - 1);
+                        break;
+                    }
+
+                    await memoryStream.WriteAsync(buffer, 0, bytesRead);
+                }
+
+                return System.Text.Encoding.ASCII.GetString(memoryStream.ToArray()).TrimEnd('\r');
             }
-            return System.Text.Encoding.ASCII.GetString(result.ToArray()).TrimEnd('\r');
+            finally
+            {
+                ArrayPool<byte>.Shared.Return(buffer);
+            }
         }
 
         public class Point3D
