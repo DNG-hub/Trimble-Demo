@@ -52,6 +52,6 @@ The Trimble Application is a .NET MAUI-based mobile app designed for viewing and
 - Advanced measurement tools and analysis features
 
 ## Tested
-- The application gas been tested on local destop as well as pixelemulator
+- The application has been tested on local destop as well as pixel emulator
 
 For any issues or feature requests, please contact the development team.
