@@ -141,7 +141,7 @@ namespace Trimble
             }
         }
 
-        private async Task<List<Point3D>> ReadPLYFile(string filePath)
+        private List<Point3D> ReadPLYFile(string filePath)
         {
             var points = new List<Point3D>();
             using (var stream = File.OpenRead(filePath))
@@ -153,54 +153,19 @@ namespace Trimble
                 var propertyIndices = new Dictionary<string, int>();
                 bool isBinary = false;
 
-                while ((line = await reader.ReadLineAsync()) is not null)
+                while ((line = await reader.ReadLineAsync()) != null)
                 {
-                    if (line.StartsWith("format"))
+                    if (!headerEnd)
                     {
-                        isBinary = line.Contains("binary");
-                        if (isBinary)
+                        if (line.StartsWith("element vertex"))
                         {
-                            throw new NotSupportedException("Binary PLY format is not supported yet.");
+                            vertexCount = int.Parse(line.Split()[2]);
                         }
-                    }
-                    else if (line.StartsWith("element vertex"))
-                    {
-                        vertexCount = int.Parse(line.Split()[2]);
-                    }
-                    else if (line.StartsWith("property"))
-                    {
-                        var parts = line.Split();
-                        propertyIndices[parts[2]] = propertyIndices.Count;
-                    }
-                    else if (line == "end_header")
-                    {
-                        headerEnd = true;
-                        break;
-                    }
-                }
-
-                if (!headerEnd)
-                {
-                    throw new FormatException("Invalid PLY file: Header not found or incomplete.");
-                }
-
-                if (!propertyIndices.ContainsKey("x") || !propertyIndices.ContainsKey("y") || !propertyIndices.ContainsKey("z"))
-                {
-                    throw new FormatException("Invalid PLY file: X, Y, or Z property not found.");
-                }
-
-                for (int i = 0; i < vertexCount; i++)
-                {
-                    line = await reader.ReadLineAsync();
-                    if (line is null)
-                    {
-                        throw new FormatException($"Unexpected end of file. Expected {vertexCount} vertices, found {i}.");
-                    }
-
-                    var values = line.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
-                    if (values.Length < propertyIndices.Count)
-                    {
-                        throw new FormatException($"Invalid vertex data on line {i + 1}. Expected {propertyIndices.Count} values, found {values.Length}.");
+                        else if (line == "end_header")
+                        {
+                            headerEnd = true;
+                        }
+                        continue;
                     }
 
                     try
